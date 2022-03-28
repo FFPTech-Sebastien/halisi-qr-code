@@ -3,29 +3,45 @@ const app = express();
 
 const server = require("http").createServer(app);
 const io = require("socket.io")(server, {
-	cors: {
-		origin: '*'
-	}
+  cors: {
+    origin: "*",
+  },
 });
 
-let rooms = {}
+let rooms = {};
 
 io.on("connection", (socket) => {
-	console.log("user connected");
-	socket.on("join", room => {
-		// rooms[room] = {
-		// 	type: "mobile",
-		// 	socket
-		// }
-		console.log(`mobile joined the room ${room}`)
-		socket.join(room);
-		if (Object.keys(rooms[room]).length > 0) {
-			socket.to(room).emit("connected");
-		}
-	});
+  socket.on("join", ({ room, type }) => {
+    if (type === "web") {
+      rooms[room] = {
+        web: socket.id,
+        mobile: null,
+      };
+      socket.join(room);
+    } else if (type === "mobile") {
+      if (rooms[room]) {
+        rooms[room].mobile = socket.id;
+        socket.join(room);
+        socket.to(room).emit("mobile-connected");
+      } else {
+        socket.emit("error", "Room not found");
+      }
+    }
 
-})
+    console.log(rooms);
+  });
+
+  socket.on("leave", (room) => {
+    socket.leave(room);
+    const mobileSocket = rooms[room]?.mobile;
+    if (mobileSocket) {
+      socket.to(mobileSocket).emit("web-disconnected");
+      io.sockets.sockets.get(mobileSocket).leave(room);
+    }
+    delete rooms[room];
+  });
+});
 
 server.listen(5000, () => {
-	console.log("Server started on port 5000");
+  console.log("Server started on port 5000");
 });
