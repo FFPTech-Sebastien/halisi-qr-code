@@ -1,47 +1,47 @@
 import React, { useState, useEffect } from "react";
 import { Text, View, StyleSheet, Button } from "react-native";
 import * as Linking from "expo-linking";
-import io from 'socket.io-client';
+import io from "socket.io-client";
+
+const IP = "192.168.0.134:5000";
+const socket = io(`http://${IP}`);
 
 export default function App() {
-	const [data, setData] = useState(null);
+  const [room, setRoom] = useState();
+  const joinRoom = (room) => {
+    setRoom(room);
+    socket.emit("join", { room, type: "mobile" });
+  };
 
-	const handleOpenURL = (event) => {
-		let data = Linking.parse(event.url);
-		console.log(data);
-		setData(data);
-	};
+  useEffect(() => {
+    (async () => {
+      const initialURL = await Linking.getInitialURL();
+      if (initialURL) {
+        const room = Linking.parse(initialURL).queryParams.room;
+        joinRoom(room);
+      }
+    })();
 
-	const joinRoom = (room) => {
-		const socket = io("192.168.1.61:5000");
-		socket.emit("join", room);
-	}
+    socket.on("error", alert);
+    socket.on("web-disconnected", () => {
+      alert("web disconnected");
+    });
 
-	useEffect(() => {
+    return () => {
+      socket.off("error");
+      socket.off("web-disconnected");
+      socket.emit("leave", room);
+    };
+  }, []);
 
-		(async () => {
-			const initialURL = await Linking.getInitialURL();
-			if (initialURL) {
-				const room = Linking.parse(initialURL).queryParams.room
-				setData(room);
-				joinRoom(room);
-			}
-		})();
-
-	}, []);
-
-	return (
-		<View style={styles.container}>
-			<Text>{data ? JSON.stringify(data) : "App not opened from link"}</Text>
-		</View>
-	);
+  return <View style={styles.container}></View>;
 }
 
 const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		backgroundColor: "#fff",
-		alignItems: "center",
-		justifyContent: "center",
-	},
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
